@@ -42,7 +42,7 @@ x3WQZRiXlWejSMUAHuMwXrhGlltF3lw83+xAjnqsVp75kGS6OH61
   "INPUT_PERMISSION-ADMINISTRATION": "",
 };
 
-export async function test(cb = (_mockPool) => {}, env = DEFAULT_ENV) {
+export async function test(cb = (_mockPool, _mockAgent) => {}, env = DEFAULT_ENV) {
   for (const [key, value] of Object.entries(env)) {
     process.env[key] = value;
   }
@@ -107,7 +107,7 @@ export async function test(cb = (_mockPool) => {}, env = DEFAULT_ENV) {
     );
 
   // Run the callback
-  cb(mockPool);
+  cb(mockPool, mockAgent);
 
   // Run the main script
   const { default: promise } = await import("../main.js");
