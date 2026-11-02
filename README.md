@@ -4,6 +4,39 @@
 
 GitHub Action for creating a GitHub App installation access token.
 
+> [!NOTE]
+> This is a fork of [actions/create-github-app-token](https://github.com/actions/create-github-app-token) that can sign the app JWT with a private key held in [Google Cloud KMS](https://cloud.google.com/kms/docs), so workflows never see the key. It is otherwise unchanged; see [Sign with Google Cloud KMS](#sign-with-google-cloud-kms). To pick up upstream changes, rebase `main` onto an upstream release tag.
+
+## Sign with Google Cloud KMS
+
+A private key in a repository secret never expires: anyone who can read the secret, for example from a workflow on any branch, can create installation tokens until the key is deleted from the app. With `kms-key-version`, the key lives in Cloud KMS, which can't export it, and the action asks Cloud KMS to sign each app JWT. What a workflow can reach is the ability to sign, bounded by the Workload Identity Federation provider's attribute condition and the key's IAM policy.
+
+The action authenticates to Google Cloud on its own with the job's GitHub OIDC token, so it doesn't need `google-github-actions/auth`. The Google Cloud credentials stay in the action's memory and are never exported to later steps; the OIDC token, the Google Cloud access token and the JWT are masked in logs.
+
+```yaml
+jobs:
+  hello-world:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required to request the GitHub OIDC token
+    steps:
+      - uses: ggsrc/create-github-app-token-gcp-kms@<commit-sha>
+        id: app-token
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          kms-key-version: projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1
+          workload-identity-provider: projects/123456789/locations/global/workloadIdentityPools/github/providers/github
+          repositories: my-repo
+          permission-contents: read
+```
+
+Google Cloud setup:
+
+1. Create an `ASYMMETRIC_SIGN` key with algorithm `RSA_SIGN_PKCS1_2048_SHA256` and import the app's private key into it ([importing a key](https://cloud.google.com/kms/docs/importing-a-key)). Then destroy every other copy of the key.
+2. Create a [Workload Identity Federation provider for GitHub Actions](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines) with an attribute condition, at least on `assertion.repository_owner_id`.
+3. Grant `roles/cloudkms.signer` on the key to the federated identities, for example `principalSet://iam.googleapis.com/projects/<project-number>/locations/global/workloadIdentityPools/<pool>/attribute.repository_owner_id/<owner-id>`. Alternatively, grant it to a service account that those identities may impersonate, and set `service-account`.
+
 ## Usage
 
 In order to use this action, you need to:
@@ -357,7 +390,7 @@ If you set `HTTP_PROXY` or `HTTPS_PROXY`, also set `NODE_USE_ENV_PROXY: "1"` on 
 
 ### `private-key`
 
-**Required:** GitHub App private key. Escaped newlines (`\\n`) will be automatically replaced with actual newlines.
+**Optional:** GitHub App private key. Either `private-key` or `kms-key-version` must be set. Escaped newlines (`\\n`) will be automatically replaced with actual newlines.
 
 Some other actions may require the private key to be Base64 encoded. To avoid recreating a new secret, it can be decoded on the fly, but it needs to be managed securely. Here is an example of how this can be achieved:
 
@@ -376,6 +409,22 @@ steps:
       client-id: ${{ vars.APP_CLIENT_ID }}
       private-key: ${{ steps.decode.outputs.private-key }}
 ```
+
+### `kms-key-version`
+
+**Optional:** Cloud KMS key version that holds the GitHub App private key, as `projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>`. Cannot be used with `private-key`. Requires `workload-identity-provider` and the `id-token: write` permission. See [Sign with Google Cloud KMS](#sign-with-google-cloud-kms).
+
+### `workload-identity-provider`
+
+**Optional:** Workload Identity Federation provider used with `kms-key-version`, as `projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>`.
+
+### `service-account`
+
+**Optional:** Service account to impersonate when signing with `kms-key-version`. If unset, the federated identity calls Cloud KMS directly.
+
+### `quota-project`
+
+**Optional:** Google Cloud project to bill the Cloud KMS requests to, sent as the `x-goog-user-project` header.
 
 ### `owner`
 

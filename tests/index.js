@@ -18,6 +18,7 @@ const files = readdirSync("tests");
 const ignore = [
   "index.js",
   "index.js.snapshot",
+  "kms.js",
   "main.js",
   "mock-agent.js",
   "README.md",

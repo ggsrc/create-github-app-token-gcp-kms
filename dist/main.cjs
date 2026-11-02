@@ -13597,7 +13597,7 @@ var require_fetch = __commonJS({
     function handleFetchDone(response) {
       finalizeAndReportTiming(response, "fetch");
     }
-    function fetch(input, init = void 0) {
+    function fetch2(input, init = void 0) {
       webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
       let p = createDeferredPromise();
       let requestObject;
@@ -14554,7 +14554,7 @@ var require_fetch = __commonJS({
       }
     }
     module2.exports = {
-      fetch,
+      fetch: fetch2,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -19014,7 +19014,7 @@ var require_undici = __commonJS({
     module2.exports.setGlobalDispatcher = setGlobalDispatcher;
     module2.exports.getGlobalDispatcher = getGlobalDispatcher;
     var fetchImpl = require_fetch().fetch;
-    module2.exports.fetch = async function fetch(init, options = void 0) {
+    module2.exports.fetch = async function fetch2(init, options = void 0) {
       try {
         return await fetchImpl(init, options);
       } catch (err) {
@@ -22242,8 +22242,8 @@ function isPlainObject2(value) {
 }
 var noop = () => "";
 async function fetchWrapper(requestOptions) {
-  const fetch = requestOptions.request?.fetch || globalThis.fetch;
-  if (!fetch) {
+  const fetch2 = requestOptions.request?.fetch || globalThis.fetch;
+  if (!fetch2) {
     throw new Error(
       "fetch is not set. Please pass a fetch implementation as new Octokit({ request: { fetch }}). Learn more at https://github.com/octokit/octokit.js/#fetch-missing"
     );
@@ -22259,7 +22259,7 @@ async function fetchWrapper(requestOptions) {
   );
   let fetchResponse;
   try {
-    fetchResponse = await fetch(requestOptions.url, {
+    fetchResponse = await fetch2(requestOptions.url, {
       method: requestOptions.method,
       body,
       redirect: requestOptions.request?.redirect,
@@ -23751,6 +23751,177 @@ function getPermissionsFromInputs(env) {
   }, void 0);
 }
 
+// lib/kms.js
+var import_node_crypto2 = require("node:crypto");
+var KMS_KEY_VERSION_PATTERN = /^projects\/[\w.:-]+\/locations\/[\w-]+\/keyRings\/[\w-]+\/cryptoKeys\/[\w-]+\/cryptoKeyVersions\/\d+$/;
+var WORKLOAD_IDENTITY_PROVIDER_PATTERN = /^projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]+\/providers\/[a-z0-9-]+$/;
+var CLOUD_KMS_SCOPE = "https://www.googleapis.com/auth/cloudkms";
+var CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+var JWT_LIFETIME_SECONDS = 3 * 60;
+var REQUEST_TIMEOUT_MILLISECONDS = 30 * 1e3;
+function createKmsJwtSigner({
+  kmsKeyVersion,
+  workloadIdentityProvider,
+  serviceAccount,
+  quotaProject,
+  core
+}) {
+  if (!KMS_KEY_VERSION_PATTERN.test(kmsKeyVersion)) {
+    throw new Error(
+      "The 'kms-key-version' input must be a Cloud KMS key version resource name: 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'."
+    );
+  }
+  if (!WORKLOAD_IDENTITY_PROVIDER_PATTERN.test(workloadIdentityProvider)) {
+    throw new Error(
+      "The 'workload-identity-provider' input must be set to 'projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>' when using 'kms-key-version'."
+    );
+  }
+  let accessTokenPromise;
+  function getAccessToken() {
+    accessTokenPromise ??= getGoogleCloudAccessToken(
+      workloadIdentityProvider,
+      serviceAccount,
+      core
+    ).catch((error2) => {
+      accessTokenPromise = void 0;
+      throw error2;
+    });
+    return accessTokenPromise;
+  }
+  return async function createJwt(clientId, timeDifference = 0) {
+    const issuedAt = Math.floor(Date.now() / 1e3) + timeDifference - 30;
+    const expiresAt = issuedAt + JWT_LIFETIME_SECONDS;
+    const signingInput = [
+      { alg: "RS256", typ: "JWT" },
+      { iat: issuedAt, exp: expiresAt, iss: clientId }
+    ].map((part) => Buffer.from(JSON.stringify(part)).toString("base64url")).join(".");
+    const signature = await signWithKms(
+      kmsKeyVersion,
+      signingInput,
+      await getAccessToken(),
+      quotaProject
+    );
+    const jwt = `${signingInput}.${signature}`;
+    core.setSecret(jwt);
+    return { jwt, expiresAt: new Date(expiresAt * 1e3).toISOString() };
+  };
+}
+async function getGoogleCloudAccessToken(workloadIdentityProvider, serviceAccount, core) {
+  const oidcToken = await getGitHubOidcToken(
+    `https://iam.googleapis.com/${workloadIdentityProvider}`,
+    core
+  );
+  const stsResponse = await fetchJson("https://sts.googleapis.com/v1/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      audience: `//iam.googleapis.com/${workloadIdentityProvider}`,
+      // Impersonation needs a token for the IAM Credentials API; otherwise the
+      // federated token only needs to reach Cloud KMS.
+      scope: serviceAccount ? CLOUD_PLATFORM_SCOPE : CLOUD_KMS_SCOPE,
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+      subject_token: oidcToken
+    })
+  }, "exchange the GitHub OIDC token with Google Cloud STS");
+  const federatedToken = requireString(
+    stsResponse.access_token,
+    "Google Cloud STS",
+    "access_token"
+  );
+  core.setSecret(federatedToken);
+  if (!serviceAccount) {
+    return federatedToken;
+  }
+  const iamResponse = await fetchJson(
+    `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:generateAccessToken`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${federatedToken}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ scope: [CLOUD_KMS_SCOPE], lifetime: "300s" })
+    },
+    `impersonate service account ${serviceAccount}`
+  );
+  const accessToken = requireString(
+    iamResponse.accessToken,
+    "IAM Credentials",
+    "accessToken"
+  );
+  core.setSecret(accessToken);
+  return accessToken;
+}
+async function getGitHubOidcToken(audience, core) {
+  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!requestUrl || !requestToken) {
+    throw new Error(
+      "Unable to get a GitHub OIDC token. Grant the job the 'id-token: write' permission to use 'kms-key-version'."
+    );
+  }
+  const url = new URL(requestUrl);
+  url.searchParams.set("audience", audience);
+  const response = await fetchJson(
+    url.href,
+    { headers: { authorization: `Bearer ${requestToken}` } },
+    "get a GitHub OIDC token"
+  );
+  const oidcToken = requireString(response.value, "GitHub", "value");
+  core.setSecret(oidcToken);
+  return oidcToken;
+}
+async function signWithKms(kmsKeyVersion, signingInput, accessToken, quotaProject) {
+  const headers = {
+    authorization: `Bearer ${accessToken}`,
+    "content-type": "application/json"
+  };
+  if (quotaProject) {
+    headers["x-goog-user-project"] = quotaProject;
+  }
+  const response = await fetchJson(
+    `https://cloudkms.googleapis.com/v1/${kmsKeyVersion}:asymmetricSign`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        digest: {
+          sha256: (0, import_node_crypto2.createHash)("sha256").update(signingInput).digest("base64")
+        }
+      })
+    },
+    "sign the GitHub App JWT with Cloud KMS"
+  );
+  if (response.name !== kmsKeyVersion || typeof response.signature !== "string" || !response.signature) {
+    throw new Error(
+      `Cloud KMS returned an unexpected response for key version '${kmsKeyVersion}'.`
+    );
+  }
+  return Buffer.from(response.signature, "base64").toString("base64url");
+}
+async function fetchJson(url, init, action) {
+  const response = await fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS)
+  });
+  if (!response.ok) {
+    const error2 = new Error(
+      `Failed to ${action}: ${response.status} ${await response.text()}`
+    );
+    Object.assign(error2, { status: response.status });
+    throw error2;
+  }
+  return response.json();
+}
+function requireString(value, service, field) {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`${service} returned no '${field}' in its response.`);
+  }
+  return value;
+}
+
 // node_modules/is-network-error/index.js
 var objectToString = Object.prototype.toString;
 var isError = (value) => objectToString.call(value) === "[object Error]";
@@ -23992,14 +24163,14 @@ async function pRetry(input, options = {}) {
 }
 
 // lib/main.js
-async function main(clientId, privateKey, enterprise, owner, repositories, permissions, core, createAppAuth2, request2, skipTokenRevoke) {
+async function main(clientId, signingOptions, enterprise, owner, repositories, permissions, core, createAppAuth2, request2, skipTokenRevoke) {
   if (enterprise && (owner || repositories.length > 0)) {
     throw new Error("Cannot use 'enterprise' input with 'owner' or 'repositories' inputs");
   }
   const target = resolveInstallationTarget(enterprise, owner, repositories, core);
   const auth5 = createAppAuth2({
     appId: clientId,
-    privateKey,
+    ...signingOptions,
     request: request2
   });
   const { authentication, installationId, appSlug } = await pRetry(
@@ -24221,9 +24392,22 @@ async function run() {
     throw new Error("The 'client-id' (or deprecated 'app-id') input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.");
   }
   const privateKey = getInput("private-key");
-  if (!privateKey) {
-    throw new Error("The 'private-key' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.");
+  const kmsKeyVersion = getInput("kms-key-version");
+  if (privateKey && kmsKeyVersion) {
+    throw new Error("The 'private-key' and 'kms-key-version' inputs cannot be used together.");
   }
+  if (!privateKey && !kmsKeyVersion) {
+    throw new Error("The 'private-key' or 'kms-key-version' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.");
+  }
+  const signingOptions = privateKey ? { privateKey } : {
+    createJwt: createKmsJwtSigner({
+      kmsKeyVersion,
+      workloadIdentityProvider: getInput("workload-identity-provider"),
+      serviceAccount: getInput("service-account"),
+      quotaProject: getInput("quota-project"),
+      core: core_exports
+    })
+  };
   const enterprise = getInput("enterprise");
   const owner = getInput("owner");
   const repositories = getInput("repositories").split(/[\n,]+/).map((s) => s.trim()).filter((x) => x !== "");
@@ -24231,7 +24415,7 @@ async function run() {
   const permissions = getPermissionsFromInputs(process.env);
   return main(
     clientId,
-    privateKey,
+    signingOptions,
     enterprise,
     owner,
     repositories,

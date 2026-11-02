@@ -135,6 +135,211 @@ POST /app/installations/123456/access_tokens
 {"permissions":{"enterprise_custom_properties_for_organizations":"read"}}
 `;
 
+exports[`main-kms-invalid-key-version.test.js > stderr 1`] = `
+The 'kms-key-version' input must be a Cloud KMS key version resource name: 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'.
+`;
+
+exports[`main-kms-invalid-key-version.test.js > stdout 1`] = `
+::error::The 'kms-key-version' input must be a Cloud KMS key version resource name: 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'.
+`;
+
+exports[`main-kms-key-version-with-query.test.js > stderr 1`] = `
+The 'kms-key-version' input must be a Cloud KMS key version resource name: 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'.
+`;
+
+exports[`main-kms-key-version-with-query.test.js > stdout 1`] = `
+::error::The 'kms-key-version' input must be a Cloud KMS key version resource name: 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'.
+`;
+
+exports[`main-kms-missing-id-token-permission.test.js > stderr 1`] = `
+Unable to get a GitHub OIDC token. Grant the job the 'id-token: write' permission to use 'kms-key-version'.
+`;
+
+exports[`main-kms-missing-id-token-permission.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+Failed to create token for "actions/create-github-app-token" (attempt 1): Unable to get a GitHub OIDC token. Grant the job the 'id-token: write' permission to use 'kms-key-version'.
+::error::Unable to get a GitHub OIDC token. Grant the job the 'id-token: write' permission to use 'kms-key-version'.
+`;
+
+exports[`main-kms-missing-workload-identity-provider.test.js > stderr 1`] = `
+The 'workload-identity-provider' input must be set to 'projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>' when using 'kms-key-version'.
+`;
+
+exports[`main-kms-missing-workload-identity-provider.test.js > stdout 1`] = `
+::error::The 'workload-identity-provider' input must be set to 'projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>' when using 'kms-key-version'.
+`;
+
+exports[`main-kms-repo-skew.test.js > stderr 1`] = `
+'Issued at' claim ('iat') must be an Integer representing the time that the assertion was issued.
+[@octokit/auth-app] GitHub API time and system time are different by 30 seconds. Retrying request with the difference accounted for.
+`;
+
+exports[`main-kms-repo-skew.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are set. Creating token for the following repositories:
+- actions/failed-repo
+::add-mask::github-oidc-token
+::add-mask::federated-access-token
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU2MDAsImV4cCI6MTc2NzIyNTc4MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=installation-id::123456
+
+::set-output name=app-slug::github-actions
+::save-state name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+::save-state name=expiresAt::2016-07-11T22:14:10Z
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+GET /repos/actions/failed-repo/installation
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"VwK79F6KJonr+wqu+URBJwh0a6ENsJ23u25lihKpCnc="}}
+GET /repos/actions/failed-repo/installation
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+POST /app/installations/123456/access_tokens
+{"repositories":["failed-repo"]}
+`;
+
+exports[`main-kms-service-account.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+::add-mask::github-oidc-token
+::add-mask::federated-access-token
+::add-mask::service-account-access-token
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=installation-id::123456
+
+::set-output name=app-slug::github-actions
+::save-state name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+::save-state name=expiresAt::2016-07-11T22:14:10Z
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+POST /v1/projects/-/serviceAccounts/signer%40my-project.iam.gserviceaccount.com:generateAccessToken
+{"scope":["https://www.googleapis.com/auth/cloudkms"],"lifetime":"300s"}
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+GET /repos/actions/create-github-app-token/installation
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+POST /app/installations/123456/access_tokens
+{"repositories":["create-github-app-token"]}
+`;
+
+exports[`main-kms-sts-missing-access-token.test.js > stderr 1`] = `
+[Error: Google Cloud STS returned no 'access_token' in its response.]
+`;
+
+exports[`main-kms-sts-missing-access-token.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+::add-mask::github-oidc-token
+Failed to create token for "actions/create-github-app-token" (attempt 1): Google Cloud STS returned no 'access_token' in its response.
+::error::Google Cloud STS returned no 'access_token' in its response.
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+`;
+
+exports[`main-kms-sts-retry.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+::add-mask::github-oidc-token
+Failed to create token for "actions/create-github-app-token" (attempt 1): Failed to exchange the GitHub OIDC token with Google Cloud STS: 503 {"error":"temporarily_unavailable"}
+::add-mask::github-oidc-token
+::add-mask::federated-access-token
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=installation-id::123456
+
+::set-output name=app-slug::github-actions
+::save-state name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+::save-state name=expiresAt::2016-07-11T22:14:10Z
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+GET /repos/actions/create-github-app-token/installation
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+POST /app/installations/123456/access_tokens
+{"repositories":["create-github-app-token"]}
+`;
+
+exports[`main-kms-success.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+::add-mask::github-oidc-token
+::add-mask::federated-access-token
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjcyMjU1NzAsImV4cCI6MTc2NzIyNTc1MCwiaXNzIjoiSXYxLjAxMjM0NTY3ODlhYmNkZWYifQ.a21zLXNpZ25hdHVyZQ
+::add-mask::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+
+::set-output name=installation-id::123456
+
+::set-output name=app-slug::github-actions
+::save-state name=token::ghs_16C7e42F292c6912E7710c838347Ae178B4a
+::save-state name=expiresAt::2016-07-11T22:14:10Z
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+GET /repos/actions/create-github-app-token/installation
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+POST /app/installations/123456/access_tokens
+{"repositories":["create-github-app-token"]}
+`;
+
+exports[`main-kms-unexpected-key-version.test.js > stderr 1`] = `
+[Error: Cloud KMS returned an unexpected response for key version 'projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1'.]
+`;
+
+exports[`main-kms-unexpected-key-version.test.js > stdout 1`] = `
+Inputs 'owner' and 'repositories' are not set. Creating token for this repository (actions/create-github-app-token).
+::add-mask::github-oidc-token
+::add-mask::federated-access-token
+Failed to create token for "actions/create-github-app-token" (attempt 1): Cloud KMS returned an unexpected response for key version 'projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1'.
+::error::Cloud KMS returned an unexpected response for key version 'projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1'.
+--- REQUESTS ---
+GET /oidc/token
+POST /v1/token
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&audience=%2F%2Fiam.googleapis.com%2Fprojects%2F123456789%2Flocations%2Fglobal%2FworkloadIdentityPools%2Fgithub%2Fproviders%2Fgithub&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudkms&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt&subject_token=github-oidc-token
+POST /v1/projects/my-project/locations/global/keyRings/github-apps/cryptoKeys/my-app/cryptoKeyVersions/1:asymmetricSign
+{"digest":{"sha256":"uL/8Z31VNxGXggLsSUOfVPsyAjCewqmvy7LmSKnJY60="}}
+`;
+
+exports[`main-kms-with-private-key.test.js > stderr 1`] = `
+The 'private-key' and 'kms-key-version' inputs cannot be used together.
+`;
+
+exports[`main-kms-with-private-key.test.js > stdout 1`] = `
+::error::The 'private-key' and 'kms-key-version' inputs cannot be used together.
+`;
+
 exports[`main-missing-client-and-app-id.test.js > stderr 1`] = `
 The 'client-id' (or deprecated 'app-id') input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.
 `;
@@ -148,11 +353,11 @@ GITHUB_REPOSITORY_OWNER missing, must be set to '<owner>'
 `;
 
 exports[`main-missing-private-key.test.js > stderr 1`] = `
-The 'private-key' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.
+The 'private-key' or 'kms-key-version' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.
 `;
 
 exports[`main-missing-private-key.test.js > stdout 1`] = `
-::error::The 'private-key' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.
+::error::The 'private-key' or 'kms-key-version' input must be set to a non-empty string. If using a secret or variable, ensure it is available in this workflow context.
 `;
 
 exports[`main-missing-repository.test.js > stderr 1`] = `

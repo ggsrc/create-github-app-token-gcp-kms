@@ -13,8 +13,20 @@ inputs:
     required: false
     deprecationMessage: "Use 'client-id' instead."
   private-key:
-    description: "GitHub App private key"
-    required: true
+    description: "GitHub App private key (cannot be used with 'kms-key-version')"
+    required: false
+  kms-key-version:
+    description: "Cloud KMS key version that holds the GitHub App private key, as 'projects/<project>/locations/<location>/keyRings/<key-ring>/cryptoKeys/<key>/cryptoKeyVersions/<version>'. The app JWT is signed by Cloud KMS instead of with 'private-key'. Requires 'workload-identity-provider' and the 'id-token: write' permission"
+    required: false
+  workload-identity-provider:
+    description: "Workload Identity Federation provider that exchanges the job's GitHub OIDC token for Google Cloud credentials, as 'projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>' (required with 'kms-key-version')"
+    required: false
+  service-account:
+    description: "Service account to impersonate for signing. If unset, the federated identity calls Cloud KMS directly"
+    required: false
+  quota-project:
+    description: "Google Cloud project to bill the Cloud KMS requests to"
+    required: false
   owner:
     description: "The owner of the GitHub App installation (defaults to current repository owner)"
     required: false
