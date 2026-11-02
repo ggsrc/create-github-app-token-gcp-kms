@@ -23753,10 +23753,12 @@ function getPermissionsFromInputs(env) {
 
 // lib/kms.js
 var import_node_crypto2 = require("node:crypto");
-var KMS_KEY_VERSION_PATTERN = /^projects\/[^/]+\/locations\/[^/]+\/keyRings\/[^/]+\/cryptoKeys\/[^/]+\/cryptoKeyVersions\/[^/]+$/;
-var WORKLOAD_IDENTITY_PROVIDER_PATTERN = /^projects\/\d+\/locations\/global\/workloadIdentityPools\/[^/]+\/providers\/[^/]+$/;
+var KMS_KEY_VERSION_PATTERN = /^projects\/[\w.:-]+\/locations\/[\w-]+\/keyRings\/[\w-]+\/cryptoKeys\/[\w-]+\/cryptoKeyVersions\/\d+$/;
+var WORKLOAD_IDENTITY_PROVIDER_PATTERN = /^projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]+\/providers\/[a-z0-9-]+$/;
 var CLOUD_KMS_SCOPE = "https://www.googleapis.com/auth/cloudkms";
 var CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+var JWT_LIFETIME_SECONDS = 3 * 60;
+var REQUEST_TIMEOUT_MILLISECONDS = 30 * 1e3;
 function createKmsJwtSigner({
   kmsKeyVersion,
   workloadIdentityProvider,
@@ -23788,7 +23790,7 @@ function createKmsJwtSigner({
   }
   return async function createJwt(clientId, timeDifference = 0) {
     const issuedAt = Math.floor(Date.now() / 1e3) + timeDifference - 30;
-    const expiresAt = issuedAt + 60 * 10;
+    const expiresAt = issuedAt + JWT_LIFETIME_SECONDS;
     const signingInput = [
       { alg: "RS256", typ: "JWT" },
       { iat: issuedAt, exp: expiresAt, iss: clientId }
@@ -23823,24 +23825,34 @@ async function getGoogleCloudAccessToken(workloadIdentityProvider, serviceAccoun
       subject_token: oidcToken
     })
   }, "exchange the GitHub OIDC token with Google Cloud STS");
-  core.setSecret(stsResponse.access_token);
+  const federatedToken = requireString(
+    stsResponse.access_token,
+    "Google Cloud STS",
+    "access_token"
+  );
+  core.setSecret(federatedToken);
   if (!serviceAccount) {
-    return stsResponse.access_token;
+    return federatedToken;
   }
   const iamResponse = await fetchJson(
     `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(serviceAccount)}:generateAccessToken`,
     {
       method: "POST",
       headers: {
-        authorization: `Bearer ${stsResponse.access_token}`,
+        authorization: `Bearer ${federatedToken}`,
         "content-type": "application/json"
       },
       body: JSON.stringify({ scope: [CLOUD_KMS_SCOPE], lifetime: "300s" })
     },
     `impersonate service account ${serviceAccount}`
   );
-  core.setSecret(iamResponse.accessToken);
-  return iamResponse.accessToken;
+  const accessToken = requireString(
+    iamResponse.accessToken,
+    "IAM Credentials",
+    "accessToken"
+  );
+  core.setSecret(accessToken);
+  return accessToken;
 }
 async function getGitHubOidcToken(audience, core) {
   const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -23852,13 +23864,14 @@ async function getGitHubOidcToken(audience, core) {
   }
   const url = new URL(requestUrl);
   url.searchParams.set("audience", audience);
-  const { value } = await fetchJson(
+  const response = await fetchJson(
     url.href,
     { headers: { authorization: `Bearer ${requestToken}` } },
     "get a GitHub OIDC token"
   );
-  core.setSecret(value);
-  return value;
+  const oidcToken = requireString(response.value, "GitHub", "value");
+  core.setSecret(oidcToken);
+  return oidcToken;
 }
 async function signWithKms(kmsKeyVersion, signingInput, accessToken, quotaProject) {
   const headers = {
@@ -23881,7 +23894,7 @@ async function signWithKms(kmsKeyVersion, signingInput, accessToken, quotaProjec
     },
     "sign the GitHub App JWT with Cloud KMS"
   );
-  if (response.name !== kmsKeyVersion || !response.signature) {
+  if (response.name !== kmsKeyVersion || typeof response.signature !== "string" || !response.signature) {
     throw new Error(
       `Cloud KMS returned an unexpected response for key version '${kmsKeyVersion}'.`
     );
@@ -23889,7 +23902,10 @@ async function signWithKms(kmsKeyVersion, signingInput, accessToken, quotaProjec
   return Buffer.from(response.signature, "base64").toString("base64url");
 }
 async function fetchJson(url, init, action) {
-  const response = await fetch(url, init);
+  const response = await fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS)
+  });
   if (!response.ok) {
     const error2 = new Error(
       `Failed to ${action}: ${response.status} ${await response.text()}`
@@ -23898,6 +23914,12 @@ async function fetchJson(url, init, action) {
     throw error2;
   }
   return response.json();
+}
+function requireString(value, service, field) {
+  if (typeof value !== "string" || !value) {
+    throw new Error(`${service} returned no '${field}' in its response.`);
+  }
+  return value;
 }
 
 // node_modules/is-network-error/index.js
